@@ -1,0 +1,51 @@
+{
+  "name": "Farhee Intelligent",
+  "short_name": "Farhee AI",
+  "description": "Multi-functional modern AI Chatbot Progressive Web Application by PGV Creation (Batticaloa, Sri Lanka)",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0D0E",
+  "theme_color": "#0B0D0E",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "AI Chat",
+      "url": "/?tab=chat",
+      "description": "Chat with Farhee Intelligent"
+    },
+    {
+      "name": "Code Generator",
+      "url": "/?tab=code",
+      "description": "Generate multi-language code"
+    },
+    {
+      "name": "Bug Reporter",
+      "url": "/?tab=bugfix",
+      "description": "Diagnose & fix errors"
+    },
+    {
+      "name": "Image Generator",
+      "url": "/?tab=image",
+      "description": "Generate AI images"
+    },
+    {
+      "name": "Music Generator",
+      "url": "/?tab=music",
+      "description": "Generate synth music & tracks"
+    }
+  ]
+}

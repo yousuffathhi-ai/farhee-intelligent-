@@ -1,0 +1,6 @@
+{
+  "name": "Farhee Intelligent",
+  "description": "Multi-functional modern AI Chatbot & Creator PWA by PGV Creation (Batticaloa, Sri Lanka) featuring Voice-to-Text Dictation, Hands-Free Live Voice Conversation Mode, PowerPoint Presentation Architect (PPTX, PDF, Excel, Word DOCX export), Code Generator, Bug Fixer, Image Gen, Audio Synthesizer, and Google Firebase Cloud Sync.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

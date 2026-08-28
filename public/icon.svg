@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B0D0E" />
+      <stop offset="50%" stop-color="#121619" />
+      <stop offset="100%" stop-color="#051E14" />
+    </linearGradient>
+    <linearGradient id="emeraldLime" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="50%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#CCFF00" />
+    </linearGradient>
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background with subtle border -->
+  <rect width="192" height="192" rx="42" fill="url(#bgGrad)" stroke="#1E262B" stroke-width="3" />
+  
+  <!-- Hexagonal circuit overlay -->
+  <polygon points="96,28 152,60 152,132 96,164 40,132 40,60" fill="none" stroke="#10B981" stroke-width="2" stroke-opacity="0.3" stroke-dasharray="6,4" />
+  
+  <!-- Farhee 'F' & Neural Spark Monogram -->
+  <g filter="url(#neonGlow)">
+    <path d="M68 56 H128 Q136 56 136 64 Q136 72 128 72 H86 V92 H120 Q128 92 128 100 Q128 108 120 108 H86 V136 Q86 144 77 144 Q68 144 68 136 Z" fill="url(#emeraldLime)" />
+    <!-- Glowing AI Core Dot -->
+    <circle cx="132" cy="132" r="9" fill="#CCFF00" />
+    <circle cx="132" cy="132" r="4" fill="#0B0D0E" />
+  </g>
+</svg>
