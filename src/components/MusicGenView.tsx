@@ -20,6 +20,7 @@ import {
 import { GeneratedMusicTrack } from '../types';
 import { globalAudioEngine } from '../utils/audioSynth';
 import { StorageService } from '../utils/storage';
+import { safeApiPost, formatHttpStatus } from '../utils/api';
 
 const GENRES = [
   { id: 'Cyberpunk Beats', label: 'Cyberpunk Beats', bpm: 128, icon: '⚡', desc: 'Heavy sub-saw, acid bassline & neon arpeggios' },
@@ -157,18 +158,35 @@ export const MusicGenView: React.FC = () => {
     setIsPlaying(false);
 
     try {
-      const res = await fetch('/api/music/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const response = await safeApiPost<any>(
+        '/api/music/generate',
+        {
           prompt,
           genre: selectedGenre,
           tempo,
           duration: 24,
-        }),
-      });
+        },
+        {
+          title: `${selectedGenre} Synthesis`,
+          genre: selectedGenre,
+          bpm: tempo,
+          key: 'C Minor',
+          mood: 'Atmospheric',
+          structure: ['Intro', 'Main Beat', 'Drop', 'Outro'],
+          synthBlueprint: {
+            bassType: 'sub-saw',
+            leadType: 'neon-supersaw',
+            drumPattern: 'cyber-electro',
+            chordProgression: ['Cm', 'Ab', 'Eb', 'Bb'],
+            melodyNotes: ['C4', 'Eb4', 'G4', 'Bb4', 'C5', 'G4', 'F4', 'Eb4'],
+            bassNotes: ['C2', 'Ab1', 'Eb2', 'Bb1'],
+          },
+          aiLyrics: 'Farhee synthesizer running in offline mode.',
+          audioCraftPrompt: `${selectedGenre}, ${prompt}, ${tempo} bpm`,
+        }
+      );
 
-      const data = await res.json();
+      const data = response.data || {};
       const newTrack: GeneratedMusicTrack = {
         id: 'track-' + Date.now(),
         title: data.title || `${selectedGenre} Synthesis`,

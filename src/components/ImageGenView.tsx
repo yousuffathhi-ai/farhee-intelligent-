@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { GeneratedImageItem } from '../types';
 import { StorageService } from '../utils/storage';
+import { safeApiPost, formatHttpStatus } from '../utils/api';
 
 const STYLES = [
   { id: 'Cinematic', label: 'Cinematic Movie', desc: 'Dramatic lighting, anamorphic lens & 8k depth' },
@@ -65,26 +66,38 @@ export const ImageGenView: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const res = await fetch('/api/image/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const currentSeed = Math.floor(Math.random() * 1000000);
+      const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(p)}?width=1024&height=1024&seed=${currentSeed}&model=flux&nologo=true`;
+
+      const response = await safeApiPost<any>(
+        '/api/image/generate',
+        {
           prompt: p,
           style: selectedStyle,
           aspectRatio,
-          seed: Math.floor(Math.random() * 1000000),
-        }),
-      });
+          seed: currentSeed,
+        },
+        {
+          imageUrl: fallbackUrl,
+          originalPrompt: p,
+          enhancedPrompt: p,
+          style: selectedStyle,
+          aspectRatio,
+          seed: currentSeed,
+          width: 1024,
+          height: 1024,
+        }
+      );
 
-      const data = await res.json();
+      const data = response.data || {};
       const newItem: GeneratedImageItem = {
         id: 'img-' + Date.now(),
-        imageUrl: data.imageUrl,
+        imageUrl: data.imageUrl || fallbackUrl,
         originalPrompt: data.originalPrompt || p,
         enhancedPrompt: data.enhancedPrompt || p,
         style: data.style || selectedStyle,
         aspectRatio: data.aspectRatio || aspectRatio,
-        seed: data.seed || 12345,
+        seed: data.seed || currentSeed,
         width: data.width || 1024,
         height: data.height || 1024,
         createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -93,9 +106,8 @@ export const ImageGenView: React.FC = () => {
       const updated = [newItem, ...gallery];
       setGallery(updated);
       StorageService.saveImage(newItem);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to generate image. Please check your network.');
+    } catch (err: any) {
+      console.error('[Farhee ImageGen Error]:', err);
     } finally {
       setIsLoading(false);
     }

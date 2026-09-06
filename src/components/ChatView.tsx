@@ -20,12 +20,15 @@ import {
   MicOff,
   PhoneCall,
   Radio,
-  Share2
+  Share2,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { ChatMessage } from '../types';
 import { StorageService } from '../utils/storage';
 import { auth, CloudStoreService } from '../utils/firebase';
 import { SpeechService, getSpeechRecognition } from '../utils/speech';
+import { safeApiPost, formatHttpStatus } from '../utils/api';
 import { VoiceModal } from './VoiceModal';
 
 interface ChatViewProps {
@@ -171,31 +174,41 @@ export const ChatView: React.FC<ChatViewProps> = ({ onNavigateToCode, onNavigate
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: updated.map(m => ({ role: m.role, content: m.content })),
-        }),
-      });
+      const response = await safeApiPost<{ reply?: string; fallbackReply?: string; mockMode?: boolean; error?: string; statusCode?: number }>(
+        '/api/chat',
+        {
+          messages: updated.map((m) => ({ role: m.role, content: m.content })),
+        },
+        {
+          reply: 'Farhee Intelligent is currently running in offline fallback mode. Please check your network or API configuration.',
+        }
+      );
 
-      const data = await res.json();
-      const replyText = data.reply || data.fallbackReply || 'Sorry, I could not process that.';
+      const replyText =
+        response.data?.reply ||
+        response.data?.fallbackReply ||
+        (response.error ? `⚠️ **Communication Notice**: ${response.error}` : 'I am here. How can I help you?');
 
       const botMessage: ChatMessage = {
         id: 'bot-' + Date.now(),
         role: 'model',
         content: replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isFallback: response.isMockOrFallback || Boolean(response.error),
+        statusCode: response.status || (response.data?.statusCode as number) || undefined,
+        errorStatus: response.error || (response.status !== 200 && response.status !== 0 ? formatHttpStatus(response.status) : undefined),
       };
 
       setMessages([...updated, botMessage]);
     } catch (err: any) {
+      console.error('[Farhee Chat Error]:', err);
       const errorMessage: ChatMessage = {
         id: 'bot-err-' + Date.now(),
         role: 'model',
-        content: '⚠️ **Network notice**: Unable to communicate with the AI engine right now. Please check your internet connection or try again.',
+        content: `⚠️ **Network Notice**: Unable to complete AI request (${err?.message || 'Connection lost'}). Farhee offline resilience active.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isFallback: true,
+        errorStatus: err?.message || 'Network exception',
       };
       setMessages([...updated, errorMessage]);
     } finally {
@@ -318,8 +331,22 @@ export const ChatView: React.FC<ChatViewProps> = ({ onNavigateToCode, onNavigate
                 </div>
 
                 {/* Bubble action bar */}
-                <div className={`flex items-center gap-2 px-1 text-[11px] text-neutral-400 ${isBot ? '' : 'justify-end'}`}>
+                <div className={`flex items-center gap-2 px-1 text-[11px] text-neutral-400 flex-wrap ${isBot ? '' : 'justify-end'}`}>
                   <span>{m.timestamp}</span>
+
+                  {isBot && m.isFallback && (
+                    <>
+                      <span>•</span>
+                      <span
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-mono"
+                        title={m.errorStatus || 'Offline Intelligent Fallback Engine'}
+                      >
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        <span>{m.statusCode ? `HTTP ${m.statusCode}` : 'Fallback Mode'}</span>
+                      </span>
+                    </>
+                  )}
+
                   {isBot && (
                     <>
                       <span>•</span>

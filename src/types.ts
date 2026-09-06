@@ -6,6 +6,9 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   isStreaming?: boolean;
+  isFallback?: boolean;
+  errorStatus?: string;
+  statusCode?: number;
 }
 
 export interface SlideItem {

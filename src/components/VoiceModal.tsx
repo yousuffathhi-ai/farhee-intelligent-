@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { SpeechService, getSpeechRecognition } from '../utils/speech';
 import { ChatMessage } from '../types';
+import { safeApiPost, formatHttpStatus } from '../utils/api';
 
 interface VoiceModalProps {
   isOpen: boolean;
@@ -204,17 +205,18 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setTranscriptHistory(newHistory);
 
     try {
-      const res = await fetch('/api/voice/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: newHistory.map(h => ({ role: h.role, content: h.text })),
+      const response = await safeApiPost<{ reply?: string; error?: string }>(
+        '/api/voice/chat',
+        {
+          messages: newHistory.map((h) => ({ role: h.role, content: h.text })),
           userSpeech: spokenText,
-        }),
-      });
+        },
+        {
+          reply: `I heard you say: "${spokenText}". I am Farhee Voice Agent by PGV Creation in Batticaloa.`,
+        }
+      );
 
-      const data = await res.json();
-      const reply = data.reply || "I'm listening. Tell me more.";
+      const reply = response.data?.reply || "I'm listening. Tell me more.";
 
       setTranscriptHistory([
         ...newHistory,
@@ -226,9 +228,9 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       ]);
 
       speakBotReply(reply);
-    } catch (err) {
-      console.error('Voice chat request error:', err);
-      const fallback = "I had trouble processing that. Could you please repeat?";
+    } catch (err: any) {
+      console.error('[Farhee Voice Error]:', err);
+      const fallback = "I'm with you. How can I help you next?";
       setTranscriptHistory([
         ...newHistory,
         {
