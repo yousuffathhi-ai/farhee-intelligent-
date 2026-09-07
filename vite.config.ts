@@ -7,8 +7,12 @@ export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
     define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY || process.env.VITE_AI_API_KEY || ''),
+      'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY || ''),
       'process.env.VITE_AI_API_KEY': JSON.stringify(process.env.VITE_AI_API_KEY || process.env.GEMINI_API_KEY || ''),
+      'process.env.REACT_APP_AI_API_KEY': JSON.stringify(process.env.REACT_APP_AI_API_KEY || process.env.GEMINI_API_KEY || ''),
+      'process.env.AI_API_KEY': JSON.stringify(process.env.AI_API_KEY || process.env.GEMINI_API_KEY || ''),
+      'import.meta.env.VITE_AI_API_KEY': JSON.stringify(process.env.VITE_AI_API_KEY || process.env.GEMINI_API_KEY || ''),
+      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || ''),
     },
     resolve: {
       alias: {

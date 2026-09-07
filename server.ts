@@ -115,8 +115,14 @@ async function callGeminiWithFallback(config: {
   topP?: number;
 }) {
   const ai = getGeminiClient();
-  // Try gemini-3.8-flash first (allocated to this project), then gemini-2.5-flash, then gemini-3.1-flash-lite
-  const modelsToTry = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-3.1-flash-lite"];
+  // Try available active models: gemini-3.1-flash-lite first, then gemini-2.5-flash-lite, gemini-3.8-flash, gemini-3.6-flash
+  const modelsToTry = [
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-2.5-flash",
+  ];
   let lastError: any = null;
 
   for (const model of modelsToTry) {
@@ -228,11 +234,17 @@ Formatting rules:
     const reply = result.text || "I'm sorry, I couldn't process that response.";
     res.json({ reply, mockMode: false, modelUsed: result.modelUsed });
   } catch (error: any) {
-    console.warn("[Farhee Chat Endpoint Notice]:", error?.message || error);
+    console.error("[Farhee Chat Endpoint Error]:", error?.message || error);
     const { statusCode, message } = extractErrorDetails(error);
+    if (apiKey) {
+      return res.status(statusCode || 500).json({
+        error: message || "Gemini inference failed",
+        statusCode: statusCode || 500,
+        details: error?.message || String(error),
+        mockMode: false,
+      });
+    }
     const fallbackReply = generateSmartChatFallback(lastUserMsg);
-
-    // Return 200 with fallbackReply and status metadata so client transport never fails
     res.json({
       reply: fallbackReply,
       fallbackReply,
@@ -305,8 +317,16 @@ Ensure the JSON is valid, properly escaped, and strictly conformant.`;
 
     res.json(data);
   } catch (error: any) {
-    console.warn("[Farhee CodeGen Endpoint Notice]:", error?.message || error);
+    console.error("[Farhee CodeGen Endpoint Error]:", error?.message || error);
     const { statusCode, message } = extractErrorDetails(error);
+    if (apiKey) {
+      return res.status(statusCode || 500).json({
+        error: message || "Gemini code generation failed",
+        statusCode: statusCode || 500,
+        details: error?.message || String(error),
+        mockMode: false,
+      });
+    }
     res.json({
       ...defaultMockCode,
       error: message,
@@ -377,8 +397,16 @@ Detected/Target Language: ${language}
 
     res.json(fixData);
   } catch (error: any) {
-    console.warn("[Farhee BugFix Endpoint Notice]:", error?.message || error);
+    console.error("[Farhee BugFix Endpoint Error]:", error?.message || error);
     const { statusCode, message } = extractErrorDetails(error);
+    if (apiKey) {
+      return res.status(statusCode || 500).json({
+        error: message || "Gemini bug diagnosis failed",
+        statusCode: statusCode || 500,
+        details: error?.message || String(error),
+        mockMode: false,
+      });
+    }
     res.json({
       ...defaultMockFix,
       error: message,
@@ -522,8 +550,16 @@ You MUST return a JSON object with:
 
     res.json(musicData);
   } catch (error: any) {
-    console.warn("[Farhee Music Endpoint Notice]:", error?.message || error);
+    console.error("[Farhee Music Endpoint Error]:", error?.message || error);
     const { statusCode, message } = extractErrorDetails(error);
+    if (apiKey) {
+      return res.status(statusCode || 500).json({
+        error: message || "Gemini music synthesis failed",
+        statusCode: statusCode || 500,
+        details: error?.message || String(error),
+        mockMode: false,
+      });
+    }
     res.json({
       ...defaultMusicBlueprint,
       error: message,
@@ -679,8 +715,16 @@ Generate exactly ${slideCount} slides. Ensure all bullet points are insightful, 
 
     res.json(presentationData);
   } catch (error: any) {
-    console.warn("[Farhee Presentation Endpoint Notice]:", error?.message || error);
+    console.error("[Farhee Presentation Endpoint Error]:", error?.message || error);
     const { statusCode, message } = extractErrorDetails(error);
+    if (apiKey) {
+      return res.status(statusCode || 500).json({
+        error: message || "Gemini presentation generation failed",
+        statusCode: statusCode || 500,
+        details: error?.message || String(error),
+        mockMode: false,
+      });
+    }
     res.json({
       ...defaultPresentationData,
       error: message,
@@ -735,8 +779,16 @@ Guidelines:
     const voiceReply = result.text ? result.text.trim() : defaultVoiceReply;
     res.json({ reply: voiceReply, mockMode: false });
   } catch (error: any) {
-    console.warn("[Farhee Voice Chat Notice]:", error?.message || error);
+    console.error("[Farhee Voice Chat Error]:", error?.message || error);
     const { statusCode, message } = extractErrorDetails(error);
+    if (apiKey) {
+      return res.status(statusCode || 500).json({
+        error: message || "Gemini voice generation failed",
+        statusCode: statusCode || 500,
+        details: error?.message || String(error),
+        mockMode: false,
+      });
+    }
     res.json({
       reply: defaultVoiceReply,
       error: message,

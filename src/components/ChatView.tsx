@@ -194,9 +194,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ onNavigateToCode, onNavigate
       const errorMessage: ChatMessage = {
         id: 'bot-err-' + Date.now(),
         role: 'model',
-        content: `⚠️ **AI Notice**: Unable to complete AI request (${err?.message || 'Connection interrupted'}). Farhee offline resilience active.`,
+        content: `❌ **Gemini AI Request Error**\n\n${err?.message || 'Connection interrupted'}\n\n*Direct diagnosis: The API request failed. Please verify API key permissions, quota limits, or network connectivity.*`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isFallback: true,
+        isFallback: false,
         errorStatus: err?.message || 'Client AI exception',
       };
       setMessages([...updated, errorMessage]);

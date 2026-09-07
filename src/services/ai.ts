@@ -1,54 +1,90 @@
 /**
  * Farhee Intelligent Direct Client-side Gemini AI Service
- * Built with @google/generative-ai for direct browser-to-API inference.
+ * Built with @google/generative-ai for direct client-side AI inference.
  * Eliminates reliance on internal Express / Node server endpoints (/api/chat)
  * that cause HTTP 404 errors on static deployments (such as Vercel, Netlify, GitHub Pages).
- * 
- * NOTE: Client-side Gemini API key usage is enabled per deployment specification.
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { safeApiPost } from '../utils/api';
 
-// Retrieve API Key checking all standard Vite and process environment variables
-export function getClientApiKey(): string {
-  // 1. Check Vite standard client variables
+/**
+ * 1. Dynamic Environment Variable Fallback:
+ * Checks ALL possible key names in the exact requested order:
+ * - process.env.GEMINI_API_KEY
+ * - process.env.VITE_AI_API_KEY
+ * - process.env.REACT_APP_AI_API_KEY
+ * - process.env.AI_API_KEY
+ * - import.meta.env.VITE_AI_API_KEY
+ * - import.meta.env.VITE_GEMINI_API_KEY
+ */
+export function getActiveApiKey(): string {
+  // 1. process.env.GEMINI_API_KEY
+  try {
+    const k = typeof process !== 'undefined' && process.env ? process.env.GEMINI_API_KEY : undefined;
+    if (k && typeof k === 'string' && k.trim().length > 0) return k.trim();
+  } catch {}
+
+  // 2. process.env.VITE_AI_API_KEY
+  try {
+    const k = typeof process !== 'undefined' && process.env ? process.env.VITE_AI_API_KEY : undefined;
+    if (k && typeof k === 'string' && k.trim().length > 0) return k.trim();
+  } catch {}
+
+  // 3. process.env.REACT_APP_AI_API_KEY
+  try {
+    const k = typeof process !== 'undefined' && process.env ? process.env.REACT_APP_AI_API_KEY : undefined;
+    if (k && typeof k === 'string' && k.trim().length > 0) return k.trim();
+  } catch {}
+
+  // 4. process.env.AI_API_KEY
+  try {
+    const k = typeof process !== 'undefined' && process.env ? process.env.AI_API_KEY : undefined;
+    if (k && typeof k === 'string' && k.trim().length > 0) return k.trim();
+  } catch {}
+
+  // 5. import.meta.env.VITE_AI_API_KEY
   try {
     const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any).env : null;
-    if (metaEnv) {
-      if (metaEnv.VITE_AI_API_KEY) return String(metaEnv.VITE_AI_API_KEY).trim();
-      if (metaEnv.VITE_GEMINI_API_KEY) return String(metaEnv.VITE_GEMINI_API_KEY).trim();
-    }
-  } catch {
-    // ignore
-  }
+    const k = metaEnv?.VITE_AI_API_KEY;
+    if (k && typeof k === 'string' && k.trim().length > 0) return k.trim();
+  } catch {}
 
-  // 2. Check process.env (injected via vite define or node environment)
+  // 6. import.meta.env.VITE_GEMINI_API_KEY
   try {
-    if (typeof process !== 'undefined' && process.env) {
-      if (process.env.GEMINI_API_KEY) return String(process.env.GEMINI_API_KEY).trim();
-      if (process.env.VITE_AI_API_KEY) return String(process.env.VITE_AI_API_KEY).trim();
-      if (process.env.AI_API_KEY) return String(process.env.AI_API_KEY).trim();
-    }
-  } catch {
-    // ignore
-  }
+    const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any).env : null;
+    const k = metaEnv?.VITE_GEMINI_API_KEY;
+    if (k && typeof k === 'string' && k.trim().length > 0) return k.trim();
+  } catch {}
 
-  // 3. Check localStorage cache if user set a custom key in browser
+  // 7. Global process / window.process runtime fallback
+  try {
+    const globalObj = (typeof window !== 'undefined' && (window as any).process?.env) ||
+                      (typeof globalThis !== 'undefined' && (globalThis as any).process?.env);
+    if (globalObj) {
+      if (globalObj.GEMINI_API_KEY) return String(globalObj.GEMINI_API_KEY).trim();
+      if (globalObj.VITE_AI_API_KEY) return String(globalObj.VITE_AI_API_KEY).trim();
+      if (globalObj.REACT_APP_AI_API_KEY) return String(globalObj.REACT_APP_AI_API_KEY).trim();
+      if (globalObj.AI_API_KEY) return String(globalObj.AI_API_KEY).trim();
+    }
+  } catch {}
+
+  // 8. LocalStorage user-provided key fallback
   try {
     if (typeof localStorage !== 'undefined') {
       const stored = localStorage.getItem('farhee_gemini_api_key') || localStorage.getItem('farhee_api_key');
-      if (stored) return stored.trim();
+      if (stored && stored.trim().length > 0) return stored.trim();
     }
-  } catch {
-    // ignore
-  }
+  } catch {}
 
   return '';
 }
 
+// Backward-compatible alias
+export const getClientApiKey = getActiveApiKey;
+
 export function hasClientApiKey(): boolean {
-  const key = getClientApiKey();
+  const key = getActiveApiKey();
   return Boolean(key && key.length > 5);
 }
 
@@ -57,7 +93,7 @@ let genAIInstance: GoogleGenerativeAI | null = null;
 let currentKeyCached = '';
 
 function getGenAI(): GoogleGenerativeAI {
-  const key = getClientApiKey();
+  const key = getActiveApiKey();
   if (!genAIInstance || currentKeyCached !== key) {
     genAIInstance = new GoogleGenerativeAI(key || 'MISSING_KEY');
     currentKeyCached = key;
@@ -74,140 +110,180 @@ Formatting guidelines:
 - Proudly acknowledge your heritage as Farhee Intelligent engineered by PGV Creation when asked.`;
 
 /**
- * Direct Client Chat Generation using @google/generative-ai
- * Model: "gemini-1.5-flash" with graceful fallback
+ * Modern candidate models in priority order.
+ * Models are tested for availability so the application automatically adapts
+ * to current API versions without 404 errors.
+ */
+const ACTIVE_MODELS = [
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
+  'gemini-3.8-flash',
+  'gemini-3.6-flash',
+  'gemini-2.5-flash',
+  'gemini-flash-latest',
+];
+
+/**
+ * Central Direct Gemini Inference Engine
+ * 2. Remove Forced Mock Fallback:
+ * If an API key exists, this function executes real Gemini AI generation.
+ * If errors occur, it logs and throws the actual API response error directly
+ * to allow direct diagnosis of connection issues.
+ */
+export async function executeGeminiDirect(options: {
+  contents: string | Array<{ role: string; parts: Array<{ text: string }> }>;
+  systemInstruction?: string;
+  responseMimeType?: string;
+  temperature?: number;
+  topP?: number;
+}): Promise<{ text: string; modelUsed: string }> {
+  const apiKey = getActiveApiKey();
+  if (!apiKey) {
+    throw new Error('No API key configured.');
+  }
+
+  const genAI = getGenAI();
+  let lastError: any = null;
+
+  for (const modelName of ACTIVE_MODELS) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: options.systemInstruction,
+        generationConfig: {
+          responseMimeType: options.responseMimeType,
+          temperature: options.temperature ?? 0.7,
+          topP: options.topP ?? 0.95,
+        },
+      });
+
+      let text = '';
+      if (typeof options.contents === 'string') {
+        const res = await model.generateContent(options.contents);
+        text = res.response.text();
+      } else {
+        // Multi-turn chat
+        const history = options.contents.slice(0, -1);
+        const lastPart = options.contents[options.contents.length - 1];
+        const lastMsg = lastPart?.parts?.[0]?.text || 'Hello';
+        const chat = model.startChat({
+          history,
+          generationConfig: {
+            temperature: options.temperature ?? 0.7,
+            topP: options.topP ?? 0.95,
+          },
+        });
+        const res = await chat.sendMessage(lastMsg);
+        text = res.response.text();
+      }
+
+      if (text && text.trim().length > 0) {
+        return { text: text.trim(), modelUsed: modelName };
+      }
+    } catch (err: any) {
+      lastError = err;
+      const errStr = String(err?.message || err);
+      console.warn(`[Farhee Gemini Router] Model '${modelName}' unavailable: ${errStr.slice(0, 120)}`);
+
+      // If credentials or permissions are invalid, trying another model won't help; throw immediately
+      if (
+        errStr.includes('API_KEY_INVALID') ||
+        errStr.includes('401') ||
+        errStr.includes('unauthorized') ||
+        errStr.includes('API key not valid')
+      ) {
+        console.error('[Gemini API Authentication Error]:', err);
+        throw new Error(`Gemini Authentication Error (401): ${err?.message || errStr}`);
+      }
+      if (errStr.includes('PERMISSION_DENIED') || errStr.includes('403')) {
+        console.error('[Gemini API Permission Denied]:', err);
+        throw new Error(`Gemini Permission Denied (403): ${err?.message || errStr}`);
+      }
+      if (errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('429')) {
+        console.error('[Gemini API Quota Exceeded]:', err);
+        throw new Error(`Gemini Rate Limit / Quota Exceeded (429): ${err?.message || errStr}`);
+      }
+    }
+  }
+
+  // If all candidate models failed, throw the actual error so connection issues can be diagnosed
+  console.error('[Gemini API Call Failed]:', lastError);
+  throw new Error(lastError?.message || 'Gemini API call failed across all candidate models.');
+}
+
+/**
+ * Direct Client Chat Generation using real Gemini AI
  */
 export async function generateChatReply(
   messages: Array<{ role: string; content: string }>,
   systemPrompt?: string
 ): Promise<{ reply: string; isFallback: boolean; errorStatus?: string; modelUsed?: string }> {
-  const apiKey = getClientApiKey();
+  const apiKey = getActiveApiKey();
 
-  // If client API key is present, ALWAYS call Gemini directly to prevent HTTP 404 or mock fallback
+  // If client API key is present: PERFORM REAL GEMINI AI GENERATION.
+  // Do NOT fall back to local mock responses. Throw the actual error if it fails.
   if (apiKey) {
     try {
-      const genAI = getGenAI();
-      const modelName = 'gemini-1.5-flash';
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        systemInstruction: systemPrompt || DEFAULT_SYSTEM_INSTRUCTION,
-      });
-
-      // Format previous history for Gemini SDK
-      // Gemini expects role: 'user' | 'model'
-      const history = messages.slice(0, -1).map((m) => ({
+      const geminiContents = messages.map((m) => ({
         role: m.role === 'model' ? 'model' : 'user',
         parts: [{ text: m.content }],
       }));
 
-      const lastMessage = messages[messages.length - 1]?.content || 'Hello';
-
-      const chat = model.startChat({
-        history,
-        generationConfig: {
-          temperature: 0.7,
-          topP: 0.95,
-        },
+      const result = await executeGeminiDirect({
+        contents: geminiContents,
+        systemInstruction: systemPrompt || DEFAULT_SYSTEM_INSTRUCTION,
       });
 
-      const result = await chat.sendMessage(lastMessage);
-      const text = result.response.text();
-
-      if (text && text.trim().length > 0) {
-        return {
-          reply: text,
-          isFallback: false,
-          modelUsed: modelName,
-        };
-      }
-    } catch (clientErr: any) {
-      console.warn('[Farhee Direct Client AI Warning]:', clientErr);
-      const errString = String(clientErr?.message || clientErr);
-
-      // If error is a rate limit or quota error, try gemini-2.5-flash or gemini-1.5-pro directly
-      if (errString.includes('404') || errString.includes('not found') || errString.includes('quota') || errString.includes('429')) {
-        try {
-          const genAI = getGenAI();
-          const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-          const lastMsg = messages[messages.length - 1]?.content || 'Hello';
-          const res = await fallbackModel.generateContent(lastMsg);
-          const t = res.response.text();
-          if (t) {
-            return { reply: t, isFallback: false, modelUsed: 'gemini-2.5-flash' };
-          }
-        } catch {
-          // continue to secondary handling
-        }
-      }
-
-      // If client call threw an error despite key being present, provide informative error without 404
       return {
-        reply: `### ⚠️ AI Processing Notice\n\nDirect Gemini inference encountered a temporary issue: **${clientErr?.message || 'Inference error'}**.\n\nPlease verify your API key permissions and quota, or try your query again.`,
-        isFallback: true,
-        errorStatus: clientErr?.message,
+        reply: result.text,
+        isFallback: false,
+        modelUsed: result.modelUsed,
       };
+    } catch (apiErr: any) {
+      console.error('[Gemini Direct Chat Exception]:', apiErr);
+      // Re-throw so the caller/UI displays the exact diagnosis error and never masks it with mock data
+      throw apiErr;
     }
   }
 
-  // If no client API key found in browser bundle, try proxy /api/chat if available
+  // If NO API key is found anywhere in the environment:
+  // Check optional server proxy or return offline notice
   try {
-    const res = await safeApiPost<{ reply?: string; fallbackReply?: string; mockMode?: boolean; error?: string }>(
+    const res = await safeApiPost<{ reply?: string; mockMode?: boolean; error?: string }>(
       '/api/chat',
-      {
-        messages,
-        systemPrompt,
-      }
+      { messages, systemPrompt }
     );
-
     if (res.ok && res.data?.reply && !res.data?.mockMode) {
       return {
         reply: res.data.reply,
         isFallback: false,
       };
     }
-
-    if (res.data?.reply) {
-      return {
-        reply: res.data.reply,
-        isFallback: res.isMockOrFallback || Boolean(res.data?.mockMode),
-        errorStatus: res.error,
-      };
-    }
   } catch {
     // server unreachable
   }
 
-  // Offline context-aware fallback when completely disconnected and no key provided
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
-  const fallbackText = getSmartOfflineReply(lastUserMsg);
-
   return {
-    reply: fallbackText,
+    reply: getSmartOfflineReply(lastUserMsg),
     isFallback: true,
-    errorStatus: 'Running in offline mode (Add VITE_AI_API_KEY in Vercel to activate live Gemini).',
+    errorStatus: 'Offline Mode: No API key detected. Please configure GEMINI_API_KEY or VITE_AI_API_KEY.',
   };
 }
 
 /**
- * Direct Client Code Generation using @google/generative-ai
+ * Direct Client Code Generation using real Gemini AI
  */
 export async function generateCodeWithGemini(
   prompt: string,
   language: string = 'React',
   framework: string = 'Tailwind CSS'
 ): Promise<any> {
-  const apiKey = getClientApiKey();
+  const apiKey = getActiveApiKey();
 
   if (apiKey) {
     try {
-      const genAI = getGenAI();
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.2,
-        },
-        systemInstruction: `You are the specialized Code Generation Engine of Farhee Intelligent, crafted by PGV Creation.
+      const systemInstruction = `You are the specialized Code Generation Engine of Farhee Intelligent, crafted by PGV Creation.
 Generate modern, production-grade, highly structured code based on the user's prompt.
 Target language: ${language}.
 Framework/Styling: ${framework}.
@@ -221,30 +297,26 @@ You MUST return a clean JSON object with this exact structure:
   "explanation": "Markdown description of how this code works and architectural choices.",
   "features": ["Key feature 1", "Key feature 2", "Key feature 3"],
   "dependencies": ["lucide-react", "clsx", "tailwind-merge"]
-}`,
+}`;
+
+      const res = await executeGeminiDirect({
+        contents: `Generate code for: ${prompt}`,
+        systemInstruction,
+        responseMimeType: 'application/json',
+        temperature: 0.2,
       });
 
-      const result = await model.generateContent(`Generate code for: ${prompt}`);
-      const text = result.response.text();
-      const parsed = JSON.parse(text);
+      const parsed = JSON.parse(res.text);
       parsed.isFallback = false;
+      parsed.modelUsed = res.modelUsed;
       return parsed;
     } catch (err) {
-      console.warn('[Direct Client CodeGen Warning]:', err);
+      console.error('[Gemini Direct CodeGen Exception]:', err);
+      throw err;
     }
   }
 
-  // Fallback to /api/code/generate
-  try {
-    const res = await safeApiPost('/api/code/generate', { prompt, language, framework });
-    if (res.data && res.data.code) {
-      return res.data;
-    }
-  } catch {
-    // ignore
-  }
-
-  // Safe client default code object
+  // Offline fallback only when NO key exists
   return {
     title: `${language} ${prompt.slice(0, 30)}`,
     language,
@@ -258,21 +330,14 @@ You MUST return a clean JSON object with this exact structure:
 }
 
 /**
- * Direct Client Bug Diagnosis & Fixer using @google/generative-ai
+ * Direct Client Bug Diagnosis & Fixer using real Gemini AI
  */
 export async function fixBugWithGemini(code: string, errorMessage: string, language: string = 'auto'): Promise<any> {
-  const apiKey = getClientApiKey();
+  const apiKey = getActiveApiKey();
 
   if (apiKey) {
     try {
-      const genAI = getGenAI();
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.1,
-        },
-        systemInstruction: `You are Farhee Intelligent's expert AI Bug Reporter & Code Fixer by PGV Creation.
+      const systemInstruction = `You are Farhee Intelligent's expert AI Bug Reporter & Code Fixer by PGV Creation.
 Analyze the provided code and/or raw terminal error logs.
 You MUST output a valid JSON with:
 1) "cause": Clear, precise root-cause analysis explaining why the error occurred.
@@ -280,29 +345,27 @@ You MUST output a valid JSON with:
 3) "explanation": Detailed line-by-line explanation of changes made.
 4) "preventionTips": Array of 3-5 actionable bullet points on how to prevent this bug in the future.
 5) "severity": "High" | "Medium" | "Low"
-6) "detectedLanguage": The detected programming language.`,
-      });
+6) "detectedLanguage": The detected programming language.`;
 
       const prompt = `BUG REPORT:\n${code ? `CODE:\n${code}\n` : ''}${errorMessage ? `ERROR:\n${errorMessage}\n` : ''}`;
-      const result = await model.generateContent(prompt);
-      const parsed = JSON.parse(result.response.text());
+      const res = await executeGeminiDirect({
+        contents: prompt,
+        systemInstruction,
+        responseMimeType: 'application/json',
+        temperature: 0.1,
+      });
+
+      const parsed = JSON.parse(res.text);
       parsed.isFallback = false;
+      parsed.modelUsed = res.modelUsed;
       return parsed;
     } catch (err) {
-      console.warn('[Direct Client BugFix Warning]:', err);
+      console.error('[Gemini Direct BugFix Exception]:', err);
+      throw err;
     }
   }
 
-  // Fallback to /api/code/fix-bug
-  try {
-    const res = await safeApiPost('/api/code/fix-bug', { code, errorMessage, language });
-    if (res.data && res.data.correctedCode) {
-      return res.data;
-    }
-  } catch {
-    // ignore
-  }
-
+  // Offline fallback only when NO key exists
   return {
     cause: errorMessage ? `Diagnostic: ${errorMessage.slice(0, 100)}` : 'Potential syntax or runtime issue identified.',
     correctedCode: code ? code.replace(/==(?!=)/g, '===') : '// Corrected code snippet',
@@ -315,42 +378,43 @@ You MUST output a valid JSON with:
 }
 
 /**
- * Direct Client Voice Mode Conversation
+ * Direct Client Voice Mode Conversation using real Gemini AI
  */
 export async function generateVoiceReplyDirect(
   messages: Array<{ role: string; content: string }>,
   userSpeech: string
 ): Promise<string> {
-  const apiKey = getClientApiKey();
+  const apiKey = getActiveApiKey();
 
   if (apiKey) {
     try {
-      const genAI = getGenAI();
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        systemInstruction: `You are Farhee Voice Agent, an ultra-responsive, intelligent, and natural conversational voice AI crafted by PGV Creation (Batticaloa, Sri Lanka).
+      const systemInstruction = `You are Farhee Voice Agent, an ultra-responsive, intelligent, and natural conversational voice AI crafted by PGV Creation (Batticaloa, Sri Lanka).
 Your replies will be SPOKEN ALOUD directly to the user in a live hands-free voice conversation.
 Guidelines:
 1. Keep replies concise, engaging, warm, and natural (1 to 3 spoken sentences per turn).
 2. Avoid markdown formatting, asterisks, bullet points, or code blocks.
-3. If asked about your creator or heritage, mention Farhee Intelligent by PGV Creation from Batticaloa, Sri Lanka.`,
+3. If asked about your creator or heritage, mention Farhee Intelligent by PGV Creation from Batticaloa, Sri Lanka.`;
+
+      const geminiContents = messages.map((m) => ({
+        role: m.role === 'model' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      }));
+
+      if (userSpeech) {
+        geminiContents.push({ role: 'user', parts: [{ text: userSpeech }] });
+      }
+
+      const res = await executeGeminiDirect({
+        contents: geminiContents,
+        systemInstruction,
+        temperature: 0.7,
       });
 
-      const prompt = userSpeech || 'Hello Farhee';
-      const res = await model.generateContent(prompt);
-      const text = res.response.text();
-      if (text && text.trim()) return text.trim();
+      return res.text;
     } catch (err) {
-      console.warn('[Direct Voice AI Warning]:', err);
+      console.error('[Gemini Direct Voice Exception]:', err);
+      throw err;
     }
-  }
-
-  // Fallback to server endpoint or standard voice string
-  try {
-    const res = await safeApiPost<{ reply?: string }>('/api/voice/chat', { messages, userSpeech });
-    if (res.data?.reply) return res.data.reply;
-  } catch {
-    // ignore
   }
 
   return userSpeech
@@ -359,7 +423,7 @@ Guidelines:
 }
 
 /**
- * Direct Client Presentation Generator using @google/generative-ai
+ * Direct Client Presentation Generator using real Gemini AI
  */
 export async function generatePresentationWithGemini(
   topic: string,
@@ -367,18 +431,11 @@ export async function generatePresentationWithGemini(
   theme: string = 'emerald',
   tone: string = 'Professional'
 ): Promise<any> {
-  const apiKey = getClientApiKey();
+  const apiKey = getActiveApiKey();
 
   if (apiKey) {
     try {
-      const genAI = getGenAI();
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.3,
-        },
-        systemInstruction: `You are Farhee Intelligent's PowerPoint & Deck Presentation Architect by PGV Creation (Batticaloa, Sri Lanka).
+      const systemInstruction = `You are Farhee Intelligent's PowerPoint & Deck Presentation Architect by PGV Creation (Batticaloa, Sri Lanka).
 Generate a comprehensive, high-impact slide deck outline based on the requested topic.
 Return ONLY a valid JSON object with:
 {
@@ -408,26 +465,26 @@ Return ONLY a valid JSON object with:
       "notes": "Speaker notes"
     }
   ]
-}`,
+}`;
+
+      const res = await executeGeminiDirect({
+        contents: `Create presentation outline for: "${topic}". Slide count: ${slideCount}, Tone: ${tone}`,
+        systemInstruction,
+        responseMimeType: 'application/json',
+        temperature: 0.3,
       });
 
-      const res = await model.generateContent(`Create presentation outline for: "${topic}". Slide count: ${slideCount}, Tone: ${tone}`);
-      const parsed = JSON.parse(res.response.text());
+      const parsed = JSON.parse(res.text);
       parsed.isFallback = false;
+      parsed.modelUsed = res.modelUsed;
       return parsed;
     } catch (err) {
-      console.warn('[Direct Client Presentation Warning]:', err);
+      console.error('[Gemini Direct Presentation Exception]:', err);
+      throw err;
     }
   }
 
-  // Fallback to server endpoint
-  try {
-    const res = await safeApiPost('/api/presentation/generate', { topic, slideCount, theme, tone });
-    if (res.data?.slides) return res.data;
-  } catch {
-    // ignore
-  }
-
+  // Offline fallback only when NO key exists
   return {
     title: topic,
     subtitle: 'Strategic Presentation & Technical Roadmap',
@@ -458,25 +515,18 @@ Return ONLY a valid JSON object with:
 }
 
 /**
- * Direct Client Music Synthesizer Blueprint using @google/generative-ai
+ * Direct Client Music Synthesizer Blueprint using real Gemini AI
  */
 export async function generateMusicWithGemini(
   prompt: string,
   genre: string = 'Cyberpunk Beats',
   tempo: number = 120
 ): Promise<any> {
-  const apiKey = getClientApiKey();
+  const apiKey = getActiveApiKey();
 
   if (apiKey) {
     try {
-      const genAI = getGenAI();
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.7,
-        },
-        systemInstruction: `You are Farhee Intelligent's Music & Audio Synthesizer AI created by PGV Creation (Batticaloa, Sri Lanka).
+      const systemInstruction = `You are Farhee Intelligent's Music & Audio Synthesizer AI created by PGV Creation (Batticaloa, Sri Lanka).
 Generate a rich, structured composition blueprint based on the prompt.
 Return JSON with:
 {
@@ -496,26 +546,26 @@ Return JSON with:
   },
   "aiLyrics": "Synthetic rhythms crafted by PGV Creation...",
   "audioCraftPrompt": "${genre}, ${prompt}, electronic synth"
-}`,
+}`;
+
+      const res = await executeGeminiDirect({
+        contents: `Generate music blueprint for: ${prompt}. Genre: ${genre}, BPM: ${tempo}`,
+        systemInstruction,
+        responseMimeType: 'application/json',
+        temperature: 0.7,
       });
 
-      const res = await model.generateContent(`Generate music blueprint for: ${prompt}. Genre: ${genre}, BPM: ${tempo}`);
-      const parsed = JSON.parse(res.response.text());
+      const parsed = JSON.parse(res.text);
       parsed.isFallback = false;
+      parsed.modelUsed = res.modelUsed;
       return parsed;
     } catch (err) {
-      console.warn('[Direct Client Music Warning]:', err);
+      console.error('[Gemini Direct Music Exception]:', err);
+      throw err;
     }
   }
 
-  // Fallback to server endpoint
-  try {
-    const res = await safeApiPost('/api/music/generate', { prompt, genre, tempo });
-    if (res.data?.synthBlueprint) return res.data;
-  } catch {
-    // ignore
-  }
-
+  // Offline fallback only when NO key exists
   return {
     title: `Farhee ${genre} Suite`,
     genre,
@@ -567,21 +617,19 @@ export async function generateImageWithGemini(
   };
 
   let enhancedPrompt = `${prompt}, ${styleKeywords[style] || styleKeywords.Cinematic}`;
-  const apiKey = getClientApiKey();
+  const apiKey = getActiveApiKey();
 
   if (apiKey) {
     try {
-      const genAI = getGenAI();
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      const res = await model.generateContent(
-        `Enhance this image prompt for a text-to-image generator in ${style} style: "${prompt}". Return ONLY the final enhanced prompt in plain text.`
-      );
-      const text = res.response.text();
-      if (text && text.trim()) {
-        enhancedPrompt = text.trim();
+      const res = await executeGeminiDirect({
+        contents: `Enhance this image prompt for a text-to-image generator in ${style} style: "${prompt}". Return ONLY the final enhanced prompt in plain text.`,
+        temperature: 0.7,
+      });
+      if (res.text && res.text.trim()) {
+        enhancedPrompt = res.text.trim();
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      console.warn('[Direct Image Enhance Notice]:', err);
     }
   }
 
@@ -611,5 +659,5 @@ function getSmartOfflineReply(userPrompt: string): string {
     return `### 💻 React Component Blueprint\n\n\`\`\`tsx\nimport React, { useState } from 'react';\n\nexport const SmartWidget: React.FC = () => {\n  const [count, setCount] = useState(0);\n  return (\n    <div className="p-6 rounded-2xl bg-[#0E1317] border border-[#1E272D] text-white">\n      <h3 className="text-lg font-bold text-[#10B981]">Farhee Component</h3>\n      <p className="text-sm text-neutral-400 mt-1">Interactive state counter: {count}</p>\n      <button \n        onClick={() => setCount(c => c + 1)}\n        className="mt-4 px-4 py-2 rounded-xl bg-[#10B981] text-black font-bold text-xs"\n      >\n        Increment Count\n      </button>\n    </div>\n  );\n};\n\`\`\``;
   }
 
-  return `### 🤖 Farhee Intelligent\n\nI received your query: **"${userPrompt}"**.\n\n*Farhee Intelligent is currently operating in offline mode. To activate live Gemini 1.5 Flash responses on your Vercel deployment, configure \`VITE_AI_API_KEY\` in your Vercel Environment Variables settings.*`;
+  return `### 🤖 Farhee Intelligent\n\nI received your query: **"${userPrompt}"**.\n\n*Farhee Intelligent is currently operating in offline mode. To activate live Gemini AI generation on your deployment, configure \`GEMINI_API_KEY\` or \`VITE_AI_API_KEY\` in your Environment Variables settings.*`;
 }
