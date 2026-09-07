@@ -19,6 +19,7 @@ import {
 import { SpeechService, getSpeechRecognition } from '../utils/speech';
 import { ChatMessage } from '../types';
 import { safeApiPost, formatHttpStatus } from '../utils/api';
+import { generateVoiceReplyDirect } from '../services/ai';
 
 interface VoiceModalProps {
   isOpen: boolean;
@@ -205,18 +206,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
     setTranscriptHistory(newHistory);
 
     try {
-      const response = await safeApiPost<{ reply?: string; error?: string }>(
-        '/api/voice/chat',
-        {
-          messages: newHistory.map((h) => ({ role: h.role, content: h.text })),
-          userSpeech: spokenText,
-        },
-        {
-          reply: `I heard you say: "${spokenText}". I am Farhee Voice Agent by PGV Creation in Batticaloa.`,
-        }
+      const reply = await generateVoiceReplyDirect(
+        newHistory.map((h) => ({ role: h.role, content: h.text })),
+        spokenText
       );
-
-      const reply = response.data?.reply || "I'm listening. Tell me more.";
 
       setTranscriptHistory([
         ...newHistory,

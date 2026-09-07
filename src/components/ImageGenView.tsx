@@ -17,6 +17,7 @@ import {
 import { GeneratedImageItem } from '../types';
 import { StorageService } from '../utils/storage';
 import { safeApiPost, formatHttpStatus } from '../utils/api';
+import { generateImageWithGemini } from '../services/ai';
 
 const STYLES = [
   { id: 'Cinematic', label: 'Cinematic Movie', desc: 'Dramatic lighting, anamorphic lens & 8k depth' },
@@ -67,32 +68,11 @@ export const ImageGenView: React.FC = () => {
     setIsLoading(true);
     try {
       const currentSeed = Math.floor(Math.random() * 1000000);
-      const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(p)}?width=1024&height=1024&seed=${currentSeed}&model=flux&nologo=true`;
+      const data = await generateImageWithGemini(p, selectedStyle, aspectRatio, currentSeed);
 
-      const response = await safeApiPost<any>(
-        '/api/image/generate',
-        {
-          prompt: p,
-          style: selectedStyle,
-          aspectRatio,
-          seed: currentSeed,
-        },
-        {
-          imageUrl: fallbackUrl,
-          originalPrompt: p,
-          enhancedPrompt: p,
-          style: selectedStyle,
-          aspectRatio,
-          seed: currentSeed,
-          width: 1024,
-          height: 1024,
-        }
-      );
-
-      const data = response.data || {};
       const newItem: GeneratedImageItem = {
         id: 'img-' + Date.now(),
-        imageUrl: data.imageUrl || fallbackUrl,
+        imageUrl: data.imageUrl,
         originalPrompt: data.originalPrompt || p,
         enhancedPrompt: data.enhancedPrompt || p,
         style: data.style || selectedStyle,

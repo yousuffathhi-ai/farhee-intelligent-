@@ -768,4 +768,10 @@ async function startServer() {
   });
 }
 
-startServer();
+// Automatically start server unless running in a serverless environment like Vercel
+if (!process.env.VERCEL && !process.env.NOW_REGION) {
+  startServer();
+}
+
+export { app };
+export default app;

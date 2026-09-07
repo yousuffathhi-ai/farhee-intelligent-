@@ -29,6 +29,7 @@ import { StorageService } from '../utils/storage';
 import { auth, CloudStoreService } from '../utils/firebase';
 import { SpeechService, getSpeechRecognition } from '../utils/speech';
 import { safeApiPost, formatHttpStatus } from '../utils/api';
+import { generateChatReply } from '../services/ai';
 import { VoiceModal } from './VoiceModal';
 
 interface ChatViewProps {
@@ -174,29 +175,17 @@ export const ChatView: React.FC<ChatViewProps> = ({ onNavigateToCode, onNavigate
     setIsLoading(true);
 
     try {
-      const response = await safeApiPost<{ reply?: string; fallbackReply?: string; mockMode?: boolean; error?: string; statusCode?: number }>(
-        '/api/chat',
-        {
-          messages: updated.map((m) => ({ role: m.role, content: m.content })),
-        },
-        {
-          reply: 'Farhee Intelligent is currently running in offline fallback mode. Please check your network or API configuration.',
-        }
+      const response = await generateChatReply(
+        updated.map((m) => ({ role: m.role, content: m.content }))
       );
-
-      const replyText =
-        response.data?.reply ||
-        response.data?.fallbackReply ||
-        (response.error ? `⚠️ **Communication Notice**: ${response.error}` : 'I am here. How can I help you?');
 
       const botMessage: ChatMessage = {
         id: 'bot-' + Date.now(),
         role: 'model',
-        content: replyText,
+        content: response.reply,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isFallback: response.isMockOrFallback || Boolean(response.error),
-        statusCode: response.status || (response.data?.statusCode as number) || undefined,
-        errorStatus: response.error || (response.status !== 200 && response.status !== 0 ? formatHttpStatus(response.status) : undefined),
+        isFallback: response.isFallback,
+        errorStatus: response.errorStatus,
       };
 
       setMessages([...updated, botMessage]);
@@ -205,10 +194,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ onNavigateToCode, onNavigate
       const errorMessage: ChatMessage = {
         id: 'bot-err-' + Date.now(),
         role: 'model',
-        content: `⚠️ **Network Notice**: Unable to complete AI request (${err?.message || 'Connection lost'}). Farhee offline resilience active.`,
+        content: `⚠️ **AI Notice**: Unable to complete AI request (${err?.message || 'Connection interrupted'}). Farhee offline resilience active.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isFallback: true,
-        errorStatus: err?.message || 'Network exception',
+        errorStatus: err?.message || 'Client AI exception',
       };
       setMessages([...updated, errorMessage]);
     } finally {

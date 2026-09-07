@@ -130,10 +130,14 @@ export const SpeechService = {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ audioBase64: base64Data, mimeType: 'audio/webm' }),
             });
-            const data = await res.json();
-            resolve(data.transcript || '');
-          } catch (err) {
-            reject(err);
+            if (res.ok) {
+              const data = await res.json();
+              resolve(data.transcript || '');
+            } else {
+              resolve('');
+            }
+          } catch {
+            resolve('');
           }
         };
       };
